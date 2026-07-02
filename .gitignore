@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .env
+Weekly*
 *_original.txt
 *.m4a
 *.mp3
