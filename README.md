@@ -88,6 +88,53 @@ Use OpenAI speaker labels:
 python main.py "Weekly QUT Meeting.m4a" --source-dir source --language en --ai --diarize
 ```
 
+With diarization, the transcript is written with a speaker label before each
+sentence:
+
+```text
+[00:00:01 - 00:00:04] Speaker A: Hello there.
+[00:00:05 - 00:00:06] Speaker B: Good thanks.
+```
+
+Rename model labels when you know who they are:
+
+```bash
+python main.py "Weekly QUT Meeting.m4a" \
+  --source-dir source \
+  --language en \
+  --ai \
+  --diarize \
+  --speaker-labels "A=Pedro,B=Supervisor"
+```
+
+Provide reference samples when you have short audio clips of known speakers:
+
+```bash
+python main.py "Weekly QUT Meeting.m4a" \
+  --source-dir source \
+  --language en \
+  --ai \
+  --diarize \
+  --known-speaker "Pedro=/path/pedro-sample.wav" \
+  --known-speaker "Supervisor=/path/supervisor-sample.wav"
+```
+
+Without `--speaker-labels` or `--known-speaker`, OpenAI can separate speakers but
+will normally name them `Speaker A`, `Speaker B`, and so on.
+
+To rerun OpenAI diarization on a media file that was already moved into a
+completed job folder:
+
+```bash
+python main.py \
+  "source/completed/Weekly QUT Meeting-20260702-142719-001/Weekly QUT Meeting.m4a" \
+  --source-dir source \
+  --language en \
+  --ai \
+  --diarize \
+  --speaker-labels "A=Pedro,B=Supervisor"
+```
+
 Run OpenAI AI-help after a transcription:
 
 ```bash

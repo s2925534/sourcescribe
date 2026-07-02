@@ -23,6 +23,8 @@ changes.
 - [x] Complete the first full local transcript for `Weekly QUT Meeting.m4a`.
 - [x] Suppress the local Whisper CPU FP16 warning by passing `--fp16 False`.
 - [x] Add OpenAI AI-help for existing transcripts and post-transcription cleanup.
+- [x] Format OpenAI diarized transcripts with speaker labels before each sentence.
+- [x] Add manual speaker label mapping and known-speaker reference options.
 
 ## Next
 
@@ -30,6 +32,7 @@ changes.
 - [ ] Decide whether OpenAI should be used for high-quality final transcripts.
 - [ ] Run AI-help on the first completed transcript and review the artifacts.
 - [ ] Confirm OpenAI project billing/quota before running AI-help on full transcripts.
+- [ ] Run an OpenAI diarized transcript once API quota is available.
 - [ ] Add a `--cleanup-failed` or `--overwrite` option for failed completed folders.
 - [ ] Improve setup output by reducing noisy `pip` lines unless there is an error.
 

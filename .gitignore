@@ -2,6 +2,12 @@
 __pycache__/
 *.py[cod]
 .env
+*_original.txt
+*.m4a
+*.mp3
+*.mp4
+*.wav
+*.webm
 source/*
 !source/.gitkeep
 .idea

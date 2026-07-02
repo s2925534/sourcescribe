@@ -22,6 +22,11 @@ from transcriber_mvp.workflow import (
 )
 
 
+def _env_known_speakers() -> list[str]:
+    value = os.getenv("TRANSCRIBER_KNOWN_SPEAKERS", "")
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 def build_parser() -> argparse.ArgumentParser:
     load_env_file()
 
@@ -85,6 +90,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use OpenAI speaker diarization. Requires --ai.",
     )
     parser.add_argument(
+        "--speaker-labels",
+        default=os.getenv("TRANSCRIBER_SPEAKER_LABELS") or None,
+        help="Rename diarized labels, for example A=Pedro,B=Supervisor. Requires --ai --diarize.",
+    )
+    parser.add_argument(
+        "--known-speaker",
+        action="append",
+        default=_env_known_speakers(),
+        help="Known speaker sample as Name=/path/audio.wav. Repeat up to 4 times. Requires --ai --diarize.",
+    )
+    parser.add_argument(
         "--chunk-minutes",
         type=float,
         default=env_float("TRANSCRIBER_CHUNK_MINUTES", DEFAULT_CHUNK_SECONDS / 60),
@@ -131,6 +147,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.diarize and not args.ai:
         parser.error("--diarize requires --ai because local Whisper has no speaker labels")
+    if (args.speaker_labels or args.known_speaker) and not (args.ai and args.diarize):
+        parser.error("--speaker-labels and --known-speaker require --ai --diarize")
+    if len(args.known_speaker) > 4:
+        parser.error("--known-speaker supports up to 4 speaker reference files")
 
     ai_help_config = AIHelpConfig(
         model=args.ai_help_model,
@@ -156,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         language=args.language,
         prompt=args.prompt,
         diarize=args.diarize,
+        speaker_labels=args.speaker_labels,
+        known_speakers=tuple(args.known_speaker),
         chunk_seconds=max(60, int(args.chunk_minutes * 60)),
         max_upload_bytes=max(1_000_000, int(args.max_upload_mb * 1024 * 1024)),
     )

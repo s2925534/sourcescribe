@@ -44,6 +44,8 @@ class JobConfig:
     language: str | None = None
     prompt: str | None = None
     diarize: bool = False
+    speaker_labels: str | None = None
+    known_speakers: tuple[str, ...] = ()
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
     chunk_seconds: int = DEFAULT_CHUNK_SECONDS
 
@@ -151,6 +153,8 @@ def _run_one(
             language=config.language,
             prompt=config.prompt,
             diarize=config.diarize,
+            speaker_labels=config.speaker_labels,
+            known_speakers=config.known_speakers,
             max_upload_bytes=config.max_upload_bytes,
             chunk_seconds=config.chunk_seconds,
         )
@@ -217,6 +221,8 @@ def _base_report(
         "local_model": config.local_model,
         "local_device": config.local_device,
         "diarize": config.diarize,
+        "speaker_labels": config.speaker_labels,
+        "known_speaker_count": len(config.known_speakers),
         "language": config.language,
         "prompt_provided": bool(config.prompt),
         "chunk_seconds": config.chunk_seconds,

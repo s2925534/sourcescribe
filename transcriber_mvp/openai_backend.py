@@ -29,6 +29,8 @@ class TranscriptionConfig:
     language: str | None = None
     prompt: str | None = None
     diarize: bool = False
+    speaker_labels: str | None = None
+    known_speakers: tuple[str, ...] = ()
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
     chunk_seconds: int = DEFAULT_CHUNK_SECONDS
 
@@ -66,7 +68,7 @@ def transcribe_media(
         prompt = _prompt_for_chunk(config.prompt, transcript_parts)
         response = _call_openai(upload_path, config, prompt)
         response_data = _response_to_dict(response)
-        text = _response_to_text(response_data).strip()
+        text = _response_to_text(response_data, config).strip()
         chunk_results.append(
             {
                 "index": index,
@@ -92,6 +94,9 @@ def transcribe_media(
     text = "\n\n".join(transcript_parts).strip()
     raw: dict[str, Any] = {
         "model": _effective_model(config),
+        "diarize": config.diarize,
+        "speaker_label_map": _parse_speaker_labels(config.speaker_labels),
+        "known_speaker_names": [name for name, _ in _parse_known_speakers(config.known_speakers)],
         "chunk_count": len(upload_paths),
         "chunks": chunk_results,
     }
@@ -111,6 +116,11 @@ def _prepare_uploads(
             "The media file is larger than the upload limit and ffmpeg/ffprobe "
             "are required for chunking."
         )
+
+    if config.diarize:
+        compressed_upload = _prepare_single_speech_upload(media_path, output_dir, config)
+        if compressed_upload:
+            return [compressed_upload]
 
     chunks_dir = output_dir / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
@@ -158,6 +168,42 @@ def _prepare_uploads(
     return chunks
 
 
+def _prepare_single_speech_upload(
+    media_path: Path,
+    output_dir: Path,
+    config: TranscriptionConfig,
+) -> Path | None:
+    upload_dir = output_dir / "openai_upload"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    for bitrate in ("32k", "24k", "16k"):
+        candidate = upload_dir / f"diarized_upload_{bitrate}.m4a"
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(media_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-c:a",
+            "aac",
+            "-b:a",
+            bitrate,
+            str(candidate),
+        ]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        if candidate.stat().st_size <= config.max_upload_bytes:
+            return candidate
+
+    return None
+
+
 def _call_openai(
     upload_path: Path,
     config: TranscriptionConfig,
@@ -167,6 +213,7 @@ def _call_openai(
 
     client = OpenAI()
     model = _effective_model(config)
+    reference_files = []
     kwargs: dict[str, Any] = {
         "model": model,
         "file": upload_path.open("rb"),
@@ -179,6 +226,11 @@ def _call_openai(
         if model == DIARIZATION_MODEL:
             kwargs["response_format"] = "diarized_json"
             kwargs["chunking_strategy"] = "auto"
+            known_speakers = _parse_known_speakers(config.known_speakers)
+            if known_speakers:
+                kwargs["known_speaker_names"] = [name for name, _ in known_speakers]
+                reference_files = [path.open("rb") for _, path in known_speakers]
+                kwargs["known_speaker_references"] = reference_files
         else:
             kwargs["response_format"] = "json"
             if prompt:
@@ -187,6 +239,8 @@ def _call_openai(
         return client.audio.transcriptions.create(**kwargs)
     finally:
         kwargs["file"].close()
+        for reference_file in reference_files:
+            reference_file.close()
 
 
 def _effective_model(config: TranscriptionConfig) -> str:
@@ -223,19 +277,92 @@ def _response_to_dict(response: Any) -> dict[str, Any]:
         return {"text": str(response)}
 
 
-def _response_to_text(response_data: dict[str, Any]) -> str:
+def _response_to_text(
+    response_data: dict[str, Any],
+    config: TranscriptionConfig | None = None,
+) -> str:
     segments = response_data.get("segments")
     if isinstance(segments, list) and segments and "speaker" in segments[0]:
         lines = []
+        speaker_labels = _parse_speaker_labels(config.speaker_labels if config else None)
         for segment in segments:
-            speaker = segment.get("speaker", "Speaker")
+            speaker = _speaker_name(segment.get("speaker", "Speaker"), speaker_labels)
             start = _format_time(segment.get("start"))
             end = _format_time(segment.get("end"))
             text = str(segment.get("text", "")).strip()
-            lines.append(f"[{start} - {end}] {speaker}: {text}")
+            for sentence in _split_sentences(text):
+                lines.append(f"[{start} - {end}] {speaker}: {sentence}")
         return "\n".join(lines)
 
     return str(response_data.get("text", "")).strip()
+
+
+def _speaker_name(speaker: Any, speaker_labels: dict[str, str]) -> str:
+    raw = str(speaker or "Speaker").strip() or "Speaker"
+    normalized = raw.removeprefix("Speaker ").strip()
+    mapped = speaker_labels.get(raw) or speaker_labels.get(normalized)
+    if mapped:
+        return mapped
+    if raw.lower().startswith("speaker "):
+        return raw
+    if len(raw) == 1 and raw.isalpha():
+        return f"Speaker {raw}"
+    return raw
+
+
+def _parse_speaker_labels(value: str | None) -> dict[str, str]:
+    if not value:
+        return {}
+
+    labels = {}
+    for item in value.split(","):
+        if "=" not in item:
+            continue
+        key, label = item.split("=", 1)
+        key = key.strip()
+        label = label.strip()
+        if key and label:
+            labels[key] = label
+    return labels
+
+
+def _parse_known_speakers(values: tuple[str, ...]) -> list[tuple[str, Path]]:
+    known_speakers = []
+    for value in values:
+        if "=" not in value:
+            raise ValueError(
+                f"Invalid known speaker value '{value}'. Use Name=/path/to/sample.wav."
+            )
+        name, path_value = value.split("=", 1)
+        name = name.strip()
+        path = Path(path_value.strip()).expanduser().resolve()
+        if not name:
+            raise ValueError("Known speaker name cannot be empty.")
+        if not path.is_file():
+            raise FileNotFoundError(f"Known speaker reference does not exist: {path}")
+        known_speakers.append((name, path))
+
+    if len(known_speakers) > 4:
+        raise ValueError("OpenAI diarization supports up to 4 known speaker references.")
+    return known_speakers
+
+
+def _split_sentences(text: str) -> list[str]:
+    text = " ".join(text.split())
+    if not text:
+        return []
+    sentences = []
+    start = 0
+    for index, char in enumerate(text):
+        if char in ".!?" and (index + 1 == len(text) or text[index + 1].isspace()):
+            sentence = text[start : index + 1].strip()
+            if sentence:
+                sentences.append(sentence)
+            start = index + 1
+    tail = text[start:].strip()
+    if tail:
+        sentences.append(tail)
+    return sentences
 
 
 def _format_time(value: Any) -> str:
