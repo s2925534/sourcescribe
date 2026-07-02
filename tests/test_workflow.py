@@ -27,7 +27,7 @@ class WorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             source_dir = Path(tmp) / "source"
             source_dir.mkdir()
-            media = source_dir / "Weekly QUT Meeting.m4a"
+            media = source_dir / "weekly-meeting.m4a"
             media.write_bytes(b"audio")
 
             results = run_jobs(
@@ -36,12 +36,12 @@ class WorkflowTests(unittest.TestCase):
             )
 
             self.assertEqual(results[0].status, "completed")
-            output_dir = source_dir / "completed" / "Weekly QUT Meeting"
-            self.assertTrue((output_dir / "Weekly QUT Meeting.m4a").exists())
+            output_dir = source_dir / "completed" / "weekly-meeting"
+            self.assertTrue((output_dir / "weekly-meeting.m4a").exists())
             self.assertFalse(media.exists())
             self.assertEqual(
                 (output_dir / "transcript.txt").read_text(encoding="utf-8").strip(),
-                "Transcript for Weekly QUT Meeting.m4a",
+                "Transcript for weekly-meeting.m4a",
             )
 
             report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))

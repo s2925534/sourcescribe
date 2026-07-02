@@ -54,7 +54,7 @@ before transcription.
 Transcribe one file by path:
 
 ```bash
-python main.py "Weekly QUT Meeting.m4a" --source-dir source --language en
+python main.py "weekly-meeting.m4a" --source-dir source --language en
 ```
 
 Transcribe every supported media file directly inside `source`:
@@ -70,22 +70,22 @@ path, report path, and whether the original source file was moved.
 Add meeting-specific context when names or acronyms matter:
 
 ```bash
-python main.py "Weekly QUT Meeting.m4a" \
+python main.py "weekly-meeting.m4a" \
   --source-dir source \
   --language en \
-  --prompt "This is a weekly QUT meeting. Preserve names, acronyms, decisions, and action items."
+  --prompt "This is a meeting recording. Preserve names, acronyms, decisions, and action items."
 ```
 
 Use OpenAI instead of local Whisper:
 
 ```bash
-python main.py "Weekly QUT Meeting.m4a" --source-dir source --language en --ai
+python main.py "weekly-meeting.m4a" --source-dir source --language en --ai
 ```
 
 Use OpenAI speaker labels:
 
 ```bash
-python main.py "Weekly QUT Meeting.m4a" --source-dir source --language en --ai --diarize
+python main.py "weekly-meeting.m4a" --source-dir source --language en --ai --diarize
 ```
 
 With diarization, the transcript is written with a speaker label before each
@@ -99,7 +99,7 @@ sentence:
 Rename model labels when you know who they are:
 
 ```bash
-python main.py "Weekly QUT Meeting.m4a" \
+python main.py "weekly-meeting.m4a" \
   --source-dir source \
   --language en \
   --ai \
@@ -110,7 +110,7 @@ python main.py "Weekly QUT Meeting.m4a" \
 Provide reference samples when you have short audio clips of known speakers:
 
 ```bash
-python main.py "Weekly QUT Meeting.m4a" \
+python main.py "weekly-meeting.m4a" \
   --source-dir source \
   --language en \
   --ai \
@@ -127,7 +127,7 @@ completed job folder:
 
 ```bash
 python main.py \
-  "source/completed/Weekly QUT Meeting-20260702-142719-001/Weekly QUT Meeting.m4a" \
+  "source/completed/weekly-meeting-20260702-142719-001/weekly-meeting.m4a" \
   --source-dir source \
   --language en \
   --ai \
@@ -144,7 +144,7 @@ python main.py --source-dir source --language en --ai-help
 Run AI-help on an existing completed job or `transcript.txt`:
 
 ```bash
-python main.py --ai-help-only "source/completed/Weekly QUT Meeting-20260702-142719-001"
+python main.py --ai-help-only "source/completed/weekly-meeting-20260702-142719-001"
 ```
 
 AI-help writes separate artifacts under `ai_help/` and does not overwrite the raw

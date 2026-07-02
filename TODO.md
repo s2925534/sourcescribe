@@ -20,7 +20,7 @@ changes.
 - [x] Apply certificate bundle handling for local Whisper downloads.
 - [x] Add progress output and completion report in the terminal.
 - [x] Add workflow and progress tests.
-- [x] Complete the first full local transcript for `Weekly QUT Meeting.m4a`.
+- [x] Complete the first full local transcript run.
 - [x] Suppress the local Whisper CPU FP16 warning by passing `--fp16 False`.
 - [x] Add OpenAI AI-help for existing transcripts and post-transcription cleanup.
 - [x] Format OpenAI diarized transcripts with speaker labels before each sentence.
