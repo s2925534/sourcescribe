@@ -176,3 +176,12 @@ Artifacts:
 
 Supported input extensions: `flac`, `m4a`, `mp3`, `mp4`, `mpeg`, `mpga`, `ogg`,
 `wav`, and `webm`.
+
+## Author
+
+Pedro Veloso <pedro@veloso.dev>
+
+## License
+
+SourceScribe is free software released under the MIT License. It is provided
+without warranties. See [LICENSE](LICENSE).

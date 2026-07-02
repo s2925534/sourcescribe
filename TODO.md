@@ -26,6 +26,7 @@ changes.
 - [x] Format OpenAI diarized transcripts with speaker labels before each sentence.
 - [x] Add manual speaker label mapping and known-speaker reference options.
 - [x] Document that AI is optional and `--ai` enables high-quality AI mode.
+- [x] Add MIT license and author details.
 
 ## Next
 
