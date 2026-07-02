@@ -4,9 +4,13 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from transcriber_mvp.progress import print_progress
 
 
 DEFAULT_MODEL = "gpt-4o-transcribe"
@@ -49,8 +53,16 @@ def transcribe_media(
     upload_paths = _prepare_uploads(media_path, output_dir, config)
     chunk_results: list[dict[str, Any]] = []
     transcript_parts: list[str] = []
+    started_at = time.monotonic()
 
     for index, upload_path in enumerate(upload_paths, start=1):
+        print_progress(
+            "openai chunks",
+            index - 1,
+            len(upload_paths),
+            started_at,
+            stream=sys.stderr,
+        )
         prompt = _prompt_for_chunk(config.prompt, transcript_parts)
         response = _call_openai(upload_path, config, prompt)
         response_data = _response_to_dict(response)
@@ -68,6 +80,14 @@ def transcribe_media(
                 transcript_parts.append(f"[Part {index}]\n{text}")
             else:
                 transcript_parts.append(text)
+        print_progress(
+            "openai chunks",
+            index,
+            len(upload_paths),
+            started_at,
+            stream=sys.stderr,
+            done=index == len(upload_paths),
+        )
 
     text = "\n\n".join(transcript_parts).strip()
     raw: dict[str, Any] = {

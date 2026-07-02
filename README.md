@@ -1,4 +1,4 @@
-# Transcriber MVP
+# SourceScribe
 
 Small CLI for transcribing audio/video files and keeping completed artifacts under
 `source/completed`.
@@ -6,7 +6,26 @@ Small CLI for transcribing audio/video files and keeping completed artifacts und
 By default it uses a local Whisper command and does not need an OpenAI API key.
 Pass `--ai` to use OpenAI speech-to-text instead.
 
+Project planning and follow-up work live in [TODO.md](TODO.md). Keep README and
+TODO updated whenever the code changes.
+
 ## Setup
+
+Run the one-command setup first:
+
+```bash
+./start
+```
+
+It creates the virtual environment, installs Python dependencies, creates `.env`
+when needed, checks `ffmpeg`, verifies local Whisper, and prepares the configured
+local Whisper model with a tiny generated audio file. It does not transcribe or
+move source files.
+
+During setup it asks whether you want to paste an OpenAI API key. Answering yes
+saves it to `.env`; OpenAI is still only used when you run with `--ai`.
+
+Manual setup is:
 
 ```bash
 python -m venv .venv
@@ -19,7 +38,8 @@ Whisper model, and optional OpenAI API key. Command-line flags override `.env`
 values.
 
 Default local transcription expects the `whisper` command to be available on
-`PATH`. OpenAI transcription also needs:
+`PATH`. CPU/default local Whisper runs pass `--fp16 False` to avoid the expected
+half-precision warning. OpenAI transcription also needs:
 
 ```bash
 export OPENAI_API_KEY="your-api-key"
@@ -42,6 +62,10 @@ Transcribe every supported media file directly inside `source`:
 ```bash
 python main.py --source-dir source --language en
 ```
+
+The command shows progress while transcription runs when the backend can report
+it. At completion it prints a short report with the output folder, transcript
+path, report path, and whether the original source file was moved.
 
 Add meeting-specific context when names or acronyms matter:
 

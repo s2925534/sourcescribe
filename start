@@ -1,0 +1,224 @@
+#!/usr/bin/env sh
+set -eu
+
+PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$PROJECT_DIR"
+
+log() {
+  printf '%s\n' "$*"
+}
+
+fail() {
+  printf 'start failed: %s\n' "$*" >&2
+  exit 1
+}
+
+find_python() {
+  if [ -x ".venv/bin/python" ]; then
+    printf '%s\n' ".venv/bin/python"
+    return 0
+  fi
+
+  for candidate in python3.13 python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+env_value() {
+  key=$1
+  default=$2
+  ".venv/bin/python" - "$key" "$default" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+key = sys.argv[1]
+default = sys.argv[2]
+if key in os.environ:
+    print(os.environ[key])
+    raise SystemExit
+
+path = Path(".env")
+if path.exists():
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if name.strip() == key:
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            print(value)
+            raise SystemExit
+print(os.environ.get(key, default))
+PY
+}
+
+set_env_value() {
+  key=$1
+  value=$2
+  TRANSCRIBER_SET_VALUE=$value ".venv/bin/python" - "$key" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+key = sys.argv[1]
+value = os.environ["TRANSCRIBER_SET_VALUE"]
+path = Path(".env")
+lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+updated = False
+output = []
+
+for line in lines:
+    stripped = line.strip()
+    if stripped and not stripped.startswith("#") and "=" in line:
+        name, _ = line.split("=", 1)
+        if name.strip() == key:
+            output.append(f"{key}={value}")
+            updated = True
+            continue
+    output.append(line)
+
+if not updated:
+    if output and output[-1].strip():
+        output.append("")
+    output.append(f"{key}={value}")
+
+path.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+PY
+}
+
+ask_openai_key() {
+  if [ ! -t 0 ]; then
+    return 0
+  fi
+
+  printf 'Do you want to add your own OpenAI API key to this project? [y/N]: '
+  read -r answer
+  case "$answer" in
+    y|Y|yes|YES|Yes)
+      printf 'Paste your OpenAI API key and press Enter: '
+      if command -v stty >/dev/null 2>&1 && [ -t 0 ]; then
+        old_stty=$(stty -g)
+        stty -echo
+        read -r openai_key
+        stty "$old_stty"
+        printf '\n'
+      else
+        read -r openai_key
+      fi
+
+      if [ -n "$openai_key" ]; then
+        set_env_value OPENAI_API_KEY "$openai_key"
+        log "OpenAI key saved to .env. Use --ai when you want OpenAI transcription."
+      else
+        log "No OpenAI key entered. Continuing with local Whisper setup."
+      fi
+      ;;
+    *)
+      log "Continuing without adding an OpenAI key."
+      ;;
+  esac
+}
+
+log "Setting up transcriber project in $PROJECT_DIR"
+
+PYTHON=$(find_python) || fail "Python 3 was not found on PATH."
+
+if [ ! -d ".venv" ]; then
+  log "Creating .venv"
+  "$PYTHON" -m venv .venv || fail "could not create .venv"
+fi
+
+log "Installing Python dependencies"
+".venv/bin/python" -m pip install -r requirements.txt || fail "pip install failed"
+
+if [ ! -f ".env" ]; then
+  log "Creating .env from .env.example"
+  cp .env.example .env || fail "could not create .env"
+fi
+
+ask_openai_key
+
+SOURCE_DIR=$(env_value TRANSCRIBER_SOURCE_DIR source)
+LOCAL_MODEL=$(env_value TRANSCRIBER_LOCAL_MODEL turbo)
+LANGUAGE=$(env_value TRANSCRIBER_LANGUAGE en)
+WHISPER_BIN=$(env_value TRANSCRIBER_WHISPER_BIN "")
+
+mkdir -p "$SOURCE_DIR" "$SOURCE_DIR/completed"
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  fail "ffmpeg is required. Install it first, for example: brew install ffmpeg"
+fi
+
+if ! command -v ffprobe >/dev/null 2>&1; then
+  fail "ffprobe is required. It is normally installed with ffmpeg."
+fi
+
+if [ -n "$WHISPER_BIN" ] && [ -x "$WHISPER_BIN" ]; then
+  WHISPER_CMD=$WHISPER_BIN
+elif [ -x ".venv/bin/whisper" ]; then
+  WHISPER_CMD=".venv/bin/whisper"
+elif command -v whisper >/dev/null 2>&1; then
+  WHISPER_CMD=$(command -v whisper)
+else
+  log "Local Whisper CLI was not found; installing openai-whisper into .venv"
+  ".venv/bin/python" -m pip install openai-whisper || fail "could not install openai-whisper"
+  [ -x ".venv/bin/whisper" ] || fail "openai-whisper installed, but .venv/bin/whisper was not created"
+  WHISPER_CMD=".venv/bin/whisper"
+fi
+
+CA_BUNDLE=$(".venv/bin/python" - <<'PY'
+import certifi
+print(certifi.where())
+PY
+)
+
+export SSL_CERT_FILE=${SSL_CERT_FILE:-$CA_BUNDLE}
+export REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-$CA_BUNDLE}
+
+log "Checking local Whisper CLI: $WHISPER_CMD"
+"$WHISPER_CMD" --help >/dev/null || fail "Whisper CLI is installed but did not run"
+
+log "Preparing local Whisper model '$LOCAL_MODEL'"
+log "The first run can download a large model file and may take a while."
+
+CHECK_DIR=".setup_check"
+rm -rf "$CHECK_DIR"
+mkdir -p "$CHECK_DIR"
+
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i anullsrc=channel_layout=mono:sample_rate=16000 \
+  -t 1 "$CHECK_DIR/silence.wav" || fail "could not generate setup check audio"
+
+if [ -n "$LANGUAGE" ]; then
+  "$WHISPER_CMD" "$CHECK_DIR/silence.wav" \
+    --model "$LOCAL_MODEL" \
+    --output_dir "$CHECK_DIR" \
+    --output_format txt \
+    --task transcribe \
+    --language "$LANGUAGE" \
+    --fp16 False \
+    --verbose False >/dev/null || fail "Whisper model setup check failed"
+else
+  "$WHISPER_CMD" "$CHECK_DIR/silence.wav" \
+    --model "$LOCAL_MODEL" \
+    --output_dir "$CHECK_DIR" \
+    --output_format txt \
+    --task transcribe \
+    --fp16 False \
+    --verbose False >/dev/null || fail "Whisper model setup check failed"
+fi
+
+rm -rf "$CHECK_DIR"
+
+".venv/bin/python" main.py --help >/dev/null || fail "transcriber CLI did not start"
+
+log "Setup complete."
+log "Run your transcript with: .venv/bin/python main.py"

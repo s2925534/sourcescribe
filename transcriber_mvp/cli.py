@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from transcriber_mvp.env import env_bool, env_float, load_env_file
+from transcriber_mvp.progress import BLUE, BOLD, GREEN, RED, YELLOW, color
 from transcriber_mvp.workflow import (
     DEFAULT_CHUNK_SECONDS,
     DEFAULT_LOCAL_MODEL,
@@ -122,10 +123,33 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     exit_code = 0
+    print()
     for result in results:
-        print(f"{result.status}: {result.source_path}")
-        print(f"  artifacts: {result.output_dir}")
+        _print_result_report(result)
         if result.error:
-            print(f"  error: {result.error}")
             exit_code = 1
     return exit_code
+
+
+def _print_result_report(result) -> None:
+    if result.status == "completed":
+        status = color("COMPLETED", GREEN)
+    else:
+        status = color("FAILED", RED)
+
+    print(color("Transcription Report", BOLD))
+    print(f"  Status: {status}")
+    print(f"  Source: {result.source_path}")
+    print(f"  Output folder: {color(str(result.output_dir), BLUE)}")
+
+    transcript_path = result.output_dir / "transcript.txt"
+    report_path = result.output_dir / "report.json"
+    if result.status == "completed":
+        print(f"  Transcript: {color(str(transcript_path), GREEN)}")
+        print(f"  Report: {report_path}")
+        print(f"  Source moved: {'yes' if result.moved_source else 'no'}")
+    else:
+        print(f"  Report: {color(str(report_path), YELLOW)}")
+        if result.error:
+            print(f"  Error: {result.error}")
+    print()

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
-import subprocess
+import sys
 from pathlib import Path
 
 from transcriber_mvp.openai_backend import (
@@ -10,6 +11,7 @@ from transcriber_mvp.openai_backend import (
     TranscriptionConfig,
     TranscriptionPayload,
 )
+from transcriber_mvp.progress import run_with_tqdm_progress
 
 
 def transcribe_media_local(
@@ -17,7 +19,7 @@ def transcribe_media_local(
     output_dir: Path,
     config: TranscriptionConfig,
 ) -> TranscriptionPayload:
-    whisper_bin = shutil.which("whisper")
+    whisper_bin = _find_whisper_bin()
     if not whisper_bin:
         raise RuntimeError(
             "Local transcription requires the Whisper CLI, but no 'whisper' "
@@ -48,8 +50,14 @@ def transcribe_media_local(
         command.extend(["--initial_prompt", config.prompt])
     if config.local_device:
         command.extend(["--device", config.local_device])
+    if not config.local_device or config.local_device.lower() == "cpu":
+        command.extend(["--fp16", "False"])
 
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = run_with_tqdm_progress(
+        command,
+        env=_subprocess_env(),
+        label="local whisper",
+    )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "unknown error").strip()
         raise RuntimeError(f"Local Whisper transcription failed: {detail[-4000:]}")
@@ -63,6 +71,39 @@ def transcribe_media_local(
     }
     text = str(raw.get("text", "")).strip()
     return TranscriptionPayload(text=text, raw=raw, chunks=[])
+
+
+def _subprocess_env() -> dict[str, str]:
+    env = os.environ.copy()
+    ca_bundle = _certifi_bundle()
+    if ca_bundle:
+        env.setdefault("SSL_CERT_FILE", ca_bundle)
+        env.setdefault("REQUESTS_CA_BUNDLE", ca_bundle)
+    return env
+
+
+def _find_whisper_bin() -> str | None:
+    configured = os.getenv("TRANSCRIBER_WHISPER_BIN")
+    if configured and Path(configured).expanduser().is_file():
+        return str(Path(configured).expanduser())
+
+    venv_candidate = Path(sys.executable).resolve().parent / "whisper"
+    if venv_candidate.is_file():
+        return str(venv_candidate)
+
+    return shutil.which("whisper")
+
+
+def _certifi_bundle() -> str | None:
+    try:
+        import certifi
+    except ImportError:
+        return None
+
+    bundle = Path(certifi.where())
+    if bundle.exists():
+        return str(bundle)
+    return None
 
 
 def _find_whisper_json(output_dir: Path, media_path: Path) -> Path:
