@@ -4,6 +4,12 @@ import argparse
 import os
 from pathlib import Path
 
+from transcriber_mvp.ai_help import (
+    DEFAULT_AI_HELP_CHUNK_CHARS,
+    DEFAULT_AI_HELP_MODEL,
+    AIHelpConfig,
+    run_ai_help_for_path,
+)
 from transcriber_mvp.env import env_bool, env_float, load_env_file
 from transcriber_mvp.progress import BLUE, BOLD, GREEN, RED, YELLOW, color
 from transcriber_mvp.workflow import (
@@ -93,6 +99,29 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         help="Maximum upload size per transcription request.",
     )
+    parser.add_argument(
+        "--ai-help",
+        action="store_true",
+        default=env_bool("TRANSCRIBER_AI_HELP", False),
+        help="Run OpenAI cleanup, summary, and action-item extraction after transcription.",
+    )
+    parser.add_argument(
+        "--ai-help-only",
+        help="Run AI help on an existing transcript.txt or completed job folder and exit.",
+    )
+    parser.add_argument(
+        "--ai-help-model",
+        default=os.getenv("TRANSCRIBER_AI_HELP_MODEL", DEFAULT_AI_HELP_MODEL),
+        help="OpenAI text model for AI help. Use 'auto' to select an available model.",
+    )
+    parser.add_argument(
+        "--ai-help-chunk-chars",
+        type=int,
+        default=int(
+            env_float("TRANSCRIBER_AI_HELP_CHUNK_CHARS", DEFAULT_AI_HELP_CHUNK_CHARS)
+        ),
+        help="Character chunk size for AI cleanup of long transcripts.",
+    )
     return parser
 
 
@@ -102,6 +131,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.diarize and not args.ai:
         parser.error("--diarize requires --ai because local Whisper has no speaker labels")
+
+    ai_help_config = AIHelpConfig(
+        model=args.ai_help_model,
+        chunk_chars=args.ai_help_chunk_chars,
+    )
+    if args.ai_help_only:
+        try:
+            ai_result = run_ai_help_for_path(Path(args.ai_help_only), ai_help_config)
+            _print_ai_help_report(ai_result)
+            return 0
+        except Exception as exc:
+            print(color("AI help failed", RED))
+            print(f"  Error: {exc}")
+            return 1
 
     config = JobConfig(
         source_dir=Path(args.source_dir),
@@ -128,6 +171,15 @@ def main(argv: list[str] | None = None) -> int:
         _print_result_report(result)
         if result.error:
             exit_code = 1
+            continue
+        if args.ai_help:
+            try:
+                ai_result = run_ai_help_for_path(result.output_dir, ai_help_config)
+                _print_ai_help_report(ai_result)
+            except Exception as exc:
+                print(color("AI help failed", RED))
+                print(f"  Error: {exc}")
+                exit_code = 1
     return exit_code
 
 
@@ -152,4 +204,17 @@ def _print_result_report(result) -> None:
         print(f"  Report: {color(str(report_path), YELLOW)}")
         if result.error:
             print(f"  Error: {result.error}")
+    print()
+
+
+def _print_ai_help_report(result) -> None:
+    print(color("AI Help Report", BOLD))
+    print(f"  Status: {color('COMPLETED', GREEN)}")
+    print(f"  Model: {result.model}")
+    print(f"  Source transcript: {result.transcript_path}")
+    print(f"  Output folder: {color(str(result.output_dir), BLUE)}")
+    print(f"  Cleaned transcript: {color(str(result.cleaned_transcript_path), GREEN)}")
+    print(f"  Summary: {color(str(result.summary_path), GREEN)}")
+    print(f"  Action items: {color(str(result.action_items_path), GREEN)}")
+    print(f"  Report: {result.report_path}")
     print()

@@ -22,18 +22,19 @@ changes.
 - [x] Add workflow and progress tests.
 - [x] Complete the first full local transcript for `Weekly QUT Meeting.m4a`.
 - [x] Suppress the local Whisper CPU FP16 warning by passing `--fp16 False`.
+- [x] Add OpenAI AI-help for existing transcripts and post-transcription cleanup.
 
 ## Next
 
 - [ ] Review the first transcript quality and decide whether `turbo` is good enough.
 - [ ] Decide whether OpenAI should be used for high-quality final transcripts.
+- [ ] Run AI-help on the first completed transcript and review the artifacts.
+- [ ] Confirm OpenAI project billing/quota before running AI-help on full transcripts.
 - [ ] Add a `--cleanup-failed` or `--overwrite` option for failed completed folders.
 - [ ] Improve setup output by reducing noisy `pip` lines unless there is an error.
 
 ## Backlog
 
-- [ ] Add a transcript summary artifact.
-- [ ] Add action item extraction for meetings.
 - [ ] Add optional Markdown transcript output.
 - [ ] Add optional SRT/VTT subtitle output from local Whisper.
 - [ ] Add richer metadata in `report.json`, including duration and backend runtime.

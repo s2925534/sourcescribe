@@ -88,6 +88,21 @@ Use OpenAI speaker labels:
 python main.py "Weekly QUT Meeting.m4a" --source-dir source --language en --ai --diarize
 ```
 
+Run OpenAI AI-help after a transcription:
+
+```bash
+python main.py --source-dir source --language en --ai-help
+```
+
+Run AI-help on an existing completed job or `transcript.txt`:
+
+```bash
+python main.py --ai-help-only "source/completed/Weekly QUT Meeting-20260702-142719-001"
+```
+
+AI-help writes separate artifacts under `ai_help/` and does not overwrite the raw
+transcript. The OpenAI key must have available API quota/billing for this step.
+
 ## Output Rules
 
 - If the file is inside `source`, it is moved only after transcription succeeds.
@@ -103,6 +118,9 @@ Artifacts:
 - `transcript.txt` - human-readable transcript
 - `transcript.json` - raw model response details
 - `report.json` - source location, model, status, movement decision, and errors
+- `ai_help/transcript_ai_cleaned.md` - OpenAI-cleaned transcript when requested
+- `ai_help/meeting_summary.md` - OpenAI-generated meeting summary when requested
+- `ai_help/action_items.md` - OpenAI-extracted action items when requested
 
 Supported input extensions: `flac`, `m4a`, `mp3`, `mp4`, `mpeg`, `mpga`, `ogg`,
 `wav`, and `webm`.
