@@ -6,6 +6,11 @@ Small CLI for transcribing audio/video files and keeping completed artifacts und
 By default it uses a local Whisper command and does not need an OpenAI API key.
 Pass `--ai` to use OpenAI speech-to-text instead.
 
+AI is optional. The app works locally without an OpenAI key. When you enable
+OpenAI with `--ai`, SourceScribe uses the high-quality AI mode for better
+accuracy, speaker diarization, and AI-help artifacts when your OpenAI account has
+available API quota.
+
 Project planning and follow-up work live in [TODO.md](TODO.md). Keep README and
 TODO updated whenever the code changes.
 
