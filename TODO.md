@@ -30,6 +30,8 @@ changes.
 
 ## Next
 
+- [ ] Stabilize the project as an importable Python package with a documented public API.
+- [ ] Add `pyproject.toml` package metadata and expose a console script entrypoint such as `sourcescribe`.
 - [ ] Review the first transcript quality and decide whether `turbo` is good enough.
 - [ ] Decide whether OpenAI should be used for high-quality final transcripts.
 - [ ] Run AI-help on the first completed transcript and review the artifacts.
@@ -37,6 +39,7 @@ changes.
 - [ ] Run an OpenAI diarized transcript once API quota is available.
 - [ ] Add a `--cleanup-failed` or `--overwrite` option for failed completed folders.
 - [ ] Improve setup output by reducing noisy `pip` lines unless there is an error.
+- [ ] Keep platform/SaaS work in the private sibling project at `../sourcescribe-platform`.
 
 ## Backlog
 
@@ -48,3 +51,37 @@ changes.
 - [ ] Add resumable processing for interrupted long transcriptions.
 - [ ] Add better local model setup options: `tiny`, `base`, `small`, `medium`, `turbo`.
 - [ ] Add CI checks for tests and linting after the repo is published.
+
+## Package Stabilization
+
+The project should work in two modes:
+
+1. As a standalone CLI tool for local use.
+2. As an importable Python package that other projects can call safely.
+
+- [ ] Rename or alias the package to a stable distribution name, such as `sourcescribe`.
+- [ ] Add `pyproject.toml` with project metadata, dependencies, Python version support, license, authors, and console scripts.
+- [ ] Keep `main.py` as a compatibility wrapper, but make the packaged CLI entrypoint the primary command.
+- [ ] Define a small public API in `transcriber_mvp/__init__.py` or a renamed package module.
+- [ ] Document public functions for running one job, running many jobs, running AI-help, and reading generated artifacts.
+- [ ] Add stable dataclasses or typed result objects for job configuration, progress updates, job results, and artifact paths.
+- [ ] Add a progress callback interface so external apps can receive structured progress instead of scraping terminal output.
+- [ ] Separate terminal printing from core workflow logic so imports do not produce unwanted console output.
+- [ ] Add package-level exceptions for expected failures, such as missing media, unsupported format, missing backend dependency, OpenAI quota failure, and transcription failure.
+- [ ] Add semantic versioning and a `CHANGELOG.md`.
+- [ ] Add package build checks with `python -m build`.
+- [ ] Add installation docs for editable installs, direct Git installs, and packaged installs.
+- [ ] Add tests that import the package exactly as downstream projects would.
+- [ ] Add GitHub Actions or another CI workflow for tests, package build, and lint/type checks.
+- [ ] Add a minimal API usage example that does not rely on CLI arguments.
+
+## Platform Boundary
+
+The CLI should remain a small standalone transcription tool. Multi-user SaaS
+features belong in the private platform project and should consume this project
+as a package or subprocess-level transcription engine.
+
+- [ ] Keep this repo focused on CLI usability, transcription quality, output formats, and engine reliability.
+- [ ] Avoid adding user accounts, billing, dashboards, web uploads, or SaaS administration here.
+- [ ] Expose stable Python interfaces that the platform can call without depending on CLI-only behavior.
+- [ ] Consider publishing/tagging this repo privately or publicly so the platform can pin a version.
