@@ -13,3 +13,6 @@ source/*
 !source/.gitkeep
 .idea
 .idea/*
+
+# Verbatim journal index: machine-local transcript paths, not portable
+/agent-context/journal-verbatim/
